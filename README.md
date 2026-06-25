@@ -270,9 +270,6 @@ rake install    # build and install locally
    gem push ruby_claude-<version>.gem
    ```
 
-   The name `ruby_claude` is currently available on RubyGems. Releasing
-   `0.0.0` is unusual — bump to e.g. `0.1.0` for your first real publish.
-
 Alternatively, do it all in one step with Bundler's release task, which builds
 the gem, creates and pushes a `v<version>` git tag, and pushes to RubyGems
 (requires a clean, committed tree):
