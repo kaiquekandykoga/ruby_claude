@@ -23,13 +23,12 @@ Gem::Specification.new do |spec|
   spec.required_ruby_version = ">= 3.2"
 
   spec.metadata["source_code_uri"] = spec.homepage
-  spec.metadata["changelog_uri"] = "#{spec.homepage}/blob/main/CHANGELOG.md"
   spec.metadata["rubygems_mfa_required"] = "true"
 
   spec.files = Dir.chdir(__dir__) do
     `git ls-files -z`.split("\x0").select do |path|
       path.start_with?("lib/") ||
-        %w[README.md CHANGELOG.md LICENSE ruby_claude.gemspec].include?(path)
+        %w[README.md LICENSE ruby_claude.gemspec].include?(path)
     end
   end
   spec.require_paths = ["lib"]
