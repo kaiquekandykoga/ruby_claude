@@ -11,16 +11,17 @@ module RubyClaude
   # is safe to reuse and to call concurrently from many threads.
   class Client
     # Heuristic patterns in stderr/result text that indicate an auth problem.
+    # Deliberately specific: bare "authentication" / "api key" / "credit
+    # balance" match too much benign text and would misclassify ordinary
+    # execution and billing failures as authentication errors.
     AUTH_PATTERNS = Regexp.union(
       /invalid api key/i,
-      /authentication/i,
+      /authentication[ _](?:failed|error|required)/i,
       /unauthorized/i,
       /not logged ?in/i,
       %r{/login}i,
       /oauth/i,
-      /log ?in to claude/i,
-      /credit balance/i,
-      /api key/i
+      /log ?in to claude/i
     ).freeze
 
     # @return [Configuration] the effective configuration for this client

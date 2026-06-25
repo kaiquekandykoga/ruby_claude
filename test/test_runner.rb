@@ -2,6 +2,7 @@
 
 require_relative "helper"
 require "rbconfig"
+require "tmpdir"
 
 # These tests exercise the real subprocess machinery, but they only ever spawn
 # a throwaway local `ruby` process (or a deliberately missing binary) — never
@@ -37,9 +38,17 @@ class RunnerTest < Test::Unit::TestCase
   end
 
   def test_timeout_kills_the_process
+    # The child records its PID, then sleeps far longer than the timeout.
+    pid_path = File.join(Dir.tmpdir, "rc_pid_#{Process.pid}_#{object_id}")
+    script = "File.write(#{pid_path.inspect}, Process.pid); sleep 30"
+
     assert_raise(RubyClaude::TimeoutError) do
-      @runner.run(argv: [@ruby, "-e", "sleep 30"], env: {}, cwd: nil, timeout: 0.5, stdin: nil)
+      @runner.run(argv: [@ruby, "-e", script], env: {}, cwd: nil, timeout: 1, stdin: nil)
     end
+
+    assert_process_killed(Integer(File.read(pid_path)))
+  ensure
+    File.delete(pid_path) if pid_path && File.exist?(pid_path)
   end
 
   def test_strips_api_key_from_the_child_environment
@@ -74,5 +83,25 @@ class RunnerTest < Test::Unit::TestCase
     assert_raise(RubyClaude::Error) do
       @runner.run(argv: [@ruby, "-e", "1"], env: {}, cwd: "/no/such/dir/xyz", timeout: 5, stdin: nil)
     end
+  end
+
+  private
+
+  # Poll briefly until the process is gone, so we assert it was actually
+  # killed rather than merely that a TimeoutError was raised.
+  def assert_process_killed(pid)
+    20.times do
+      return assert_true(true) unless process_alive?(pid)
+
+      sleep 0.05
+    end
+    flunk "child process #{pid} should have been killed after the timeout"
+  end
+
+  def process_alive?(pid)
+    Process.kill(0, pid)
+    true
+  rescue Errno::ESRCH
+    false
   end
 end

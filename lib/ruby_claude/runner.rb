@@ -40,7 +40,7 @@ module RubyClaude
         write_stdin(stdin_io, stdin)
 
         if wait_thr.join(timeout).nil?
-          terminate(wait_thr.pid)
+          terminate(wait_thr)
           out_reader.kill
           err_reader.kill
           raise TimeoutError, "claude did not finish within #{timeout}s; the process was killed"
@@ -64,12 +64,14 @@ module RubyClaude
     def stream(argv:, env:, cwd:, timeout:, stdin: nil)
       spawn(argv, env, cwd) do |stdin_io, stdout_io, stderr_io, wait_thr|
         err_reader = Thread.new { stderr_io.read }
-        write_stdin(stdin_io, stdin)
+        # Write stdin on its own thread so a prompt larger than the OS pipe
+        # buffer can't deadlock against stdout we haven't started reading yet.
+        writer = Thread.new { write_stdin(stdin_io, stdin) }
         timed_out = false
         watchdog = Thread.new do
           sleep(timeout)
           timed_out = true
-          terminate(wait_thr.pid)
+          terminate(wait_thr)
         end
 
         begin
@@ -79,6 +81,7 @@ module RubyClaude
           end
         ensure
           watchdog.kill
+          writer.join
         end
 
         raise TimeoutError, "claude streaming exceeded #{timeout}s; the process was killed" if timed_out
@@ -112,18 +115,17 @@ module RubyClaude
       stdin_io.close unless stdin_io.closed?
     end
 
-    # Send +SIGTERM+, then escalate to +SIGKILL+ after a short grace period in
-    # case the child ignores the polite signal.
-    def terminate(pid)
-      Process.kill("TERM", pid)
-      Thread.new do
-        sleep(KILL_GRACE)
-        begin
-          Process.kill("KILL", pid)
-        rescue Errno::ESRCH
-          # The process already exited.
-        end
-      end
+    # Send +SIGTERM+, wait up to {KILL_GRACE} for the child to exit, then
+    # escalate to +SIGKILL+ if it ignored the polite signal.
+    #
+    # This runs synchronously while holding +wait_thr+: the child's PID can't
+    # be reaped (and therefore can't be recycled by the OS) until we let go,
+    # so the +SIGKILL+ can never land on an unrelated, reused PID.
+    def terminate(wait_thr)
+      Process.kill("TERM", wait_thr.pid)
+      return if wait_thr.join(KILL_GRACE)
+
+      Process.kill("KILL", wait_thr.pid)
     rescue Errno::ESRCH
       # The process already exited.
     end
