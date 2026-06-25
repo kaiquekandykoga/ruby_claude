@@ -1,0 +1,4 @@
+{"type":"system","subtype":"init","session_id":"sess-stream-001","model":"claude-sonnet-4-6","tools":["Read","Grep"],"cwd":"/tmp"}
+{"type":"assistant","message":{"id":"msg_1","type":"message","role":"assistant","model":"claude-sonnet-4-6","content":[{"type":"text","text":"Ruby on rails\n"}]},"session_id":"sess-stream-001"}
+{"type":"assistant","message":{"id":"msg_1","role":"assistant","content":[{"type":"text","text":"Gems shimmer brightly"}]},"session_id":"sess-stream-001"}
+{"type":"result","subtype":"success","is_error":false,"duration_ms":2100,"duration_api_ms":1900,"num_turns":1,"result":"Ruby on rails\nGems shimmer brightly","session_id":"sess-stream-001","total_cost_usd":0.0,"usage":{"input_tokens":50,"output_tokens":20}}

@@ -1,0 +1,49 @@
+AllCops:
+  TargetRubyVersion: 3.2
+  NewCops: disable
+  SuggestExtensions: false
+
+# We document with YARD; a comment on every class/module is not required.
+Style/Documentation:
+  Enabled: false
+
+# The Response/Error predicates use the idiomatic `!!value`.
+Style/DoubleNegation:
+  Enabled: false
+
+Style/StringLiterals:
+  EnforcedStyle: double_quotes
+
+Style/StringLiteralsInInterpolation:
+  EnforcedStyle: double_quotes
+
+Style/HashSyntax:
+  EnforcedShorthandSyntax: either
+
+Layout/LineLength:
+  Max: 120
+
+Metrics/MethodLength:
+  Max: 30
+
+Metrics/AbcSize:
+  Max: 30
+
+Metrics/CyclomaticComplexity:
+  Max: 12
+
+Metrics/PerceivedComplexity:
+  Max: 12
+
+Metrics/ClassLength:
+  Max: 200
+
+Metrics/ParameterLists:
+  Max: 6
+
+# Test methods and config blocks are naturally long.
+Metrics/BlockLength:
+  Enabled: false
+
+Naming/MethodParameterName:
+  Enabled: false

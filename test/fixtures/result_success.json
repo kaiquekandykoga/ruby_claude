@@ -1,0 +1,1 @@
+{"type":"result","subtype":"success","is_error":false,"duration_ms":3120,"duration_api_ms":2980,"num_turns":1,"result":"Ruby Claude is a small SDK.","session_id":"11111111-2222-3333-4444-555555555555","total_cost_usd":0.0123,"usage":{"input_tokens":1200,"output_tokens":85,"cache_read_input_tokens":0}}
