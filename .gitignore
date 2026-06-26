@@ -1,6 +1,8 @@
 /.bundle/
 /pkg/
-/doc/
+# Ignore YARD's generated HTML, but keep hand-written markdown docs (doc/*.md).
+/doc/*
+!/doc/*.md
 /.yardoc/
 /tmp/
 *.gem

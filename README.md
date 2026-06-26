@@ -225,6 +225,10 @@ fully hermetic: it never makes a network call and never invokes the real
 `claude` binary. (A handful of `Runner` tests spawn a throwaway local `ruby`
 process to exercise the subprocess plumbing.)
 
+See [`doc/DEVELOPMENT.md`](doc/DEVELOPMENT.md) for how this gem mirrors the
+official Claude Agent SDKs (Python and TypeScript) and how to track their
+changes while keeping it idiomatic Ruby.
+
 ## Building and publishing the gem
 
 The version lives in [`lib/ruby_claude/version.rb`](lib/ruby_claude/version.rb).
