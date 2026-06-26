@@ -6,7 +6,7 @@ Gem::Specification.new do |spec|
   spec.name = "ruby_claude"
   spec.version = RubyClaude::VERSION
   spec.authors = ["Kaíque Kandy Koga"]
-  spec.email = ["kaique.koga@javln.com"]
+  spec.email = ["kaiquekandykoga@gmail.com"]
 
   spec.summary = "Subscription-authenticated Ruby SDK for Claude via the Claude Code CLI."
   spec.description = <<~DESC
