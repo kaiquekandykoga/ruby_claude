@@ -108,9 +108,64 @@ bundle exec rake        # tests + lint (hermetic — never spawns the real claud
 bin/console             # IRB with the gem loaded
 ```
 
-Publish with `gem build ruby_claude.gemspec && gem push ruby_claude-<version>.gem`
-(or `rake release`). Contributing or tracking upstream SDK changes? See
+Contributing or tracking upstream SDK changes? See
 [`doc/DEVELOPMENT.md`](doc/DEVELOPMENT.md).
+
+## Building and publishing the gem
+
+The version lives in [`lib/ruby_claude/version.rb`](lib/ruby_claude/version.rb).
+Before a release, bump it following [SemVer](https://semver.org).
+
+### Build locally
+
+```bash
+gem build ruby_claude.gemspec             # => ruby_claude-<version>.gem
+gem install ./ruby_claude-<version>.gem   # try the built gem locally
+```
+
+`spec.files` is derived from `git ls-files`, so only **tracked** files are
+packaged — commit (or at least stage) your changes before building, or the gem
+will be missing files. Bundler's gem tasks do the same and drop the artifact in
+`pkg/`:
+
+```bash
+rake build      # build into pkg/
+rake install    # build and install locally
+```
+
+### Publish to RubyGems
+
+1. Create a [RubyGems.org](https://rubygems.org) account and sign in once
+   (credentials are stored in `~/.gem/credentials`):
+
+   ```bash
+   gem signin
+   ```
+
+2. Make sure the tree is green and committed:
+
+   ```bash
+   rake            # tests + lint
+   git status      # nothing uncommitted
+   ```
+
+3. Build and push:
+
+   ```bash
+   gem build ruby_claude.gemspec
+   gem push ruby_claude-<version>.gem
+   ```
+
+Alternatively, do it all in one step with Bundler's release task, which builds
+the gem, creates and pushes a `v<version>` git tag, and pushes to RubyGems
+(requires a clean, committed tree):
+
+```bash
+rake release
+```
+
+> The gemspec sets `rubygems_mfa_required`, so enable MFA on your RubyGems
+> account; pushes and yanks will then prompt for a one-time code.
 
 ## License
 
