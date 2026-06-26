@@ -1,92 +1,132 @@
 # Development
 
-Notes for maintaining Ruby Claude. For day-to-day commands (tests, lint,
-building/publishing) see the **Development** and **Building and publishing the
-gem** sections of the [README](../README.md). This document records *where the
-design comes from* and *how to keep it in sync with upstream*.
+How Ruby Claude stays aligned with upstream, and the workflow agents follow to
+keep it that way. For day-to-day commands (tests, lint, build, publish) see the
+[README](../README.md).
 
-## Provenance — based on the official Claude Agent SDKs
+## Provenance
 
-Anthropic ships official **Agent SDKs** in two languages:
+Ruby Claude is a hand-written, idiomatic Ruby port of Anthropic's official
+**Agent SDKs** — there is no official Ruby SDK. The Python (`claude-agent-sdk`)
+and TypeScript (`@anthropic-ai/claude-agent-sdk`) SDKs are themselves thin
+wrappers that drive the **Claude Code CLI** (`claude -p`, the
+`@anthropic-ai/claude-code` package). This gem mirrors their behavior and public
+surface by shelling out to that same CLI; it is **not** generated or vendored
+from them.
 
-- **Python** — [`claude-agent-sdk`](https://code.claude.com/docs/en/agent-sdk/python) (`from claude_agent_sdk import query, ClaudeAgentOptions`)
-- **TypeScript** — [`@anthropic-ai/claude-agent-sdk`](https://code.claude.com/docs/en/agent-sdk/typescript) (`import { query } from "@anthropic-ai/claude-agent-sdk"`)
+The CLI and SDKs evolve — new flags, output fields, event types, options. This
+gem should track those and adopt what fits, while staying idiomatic Ruby and
+dependency-free. The [Sync workflow](#sync-workflow) below is how that happens.
 
-Both SDKs are, under the hood, thin wrappers that drive the **Claude Code CLI**
-(`claude -p`, shipped as the `@anthropic-ai/claude-code` npm package). There is
-no official Ruby SDK.
+## Upstream baseline
 
-**Ruby Claude is a hand-written, idiomatic Ruby port of that same approach.** It
-shells out to `claude -p` and shapes the CLI's JSON into Ruby objects. It is not
-generated from, nor vendored from, the official SDKs — it deliberately *mirrors
-their behavior and public surface* so Ruby users get a familiar experience.
+The versions this gem was last reconciled against. There are **three** upstreams
+to track, not just the CLI. Bump this table on every sync (and add a
+[Sync log](#sync-log) entry) so the next diff has a starting point.
 
-**Why this is recorded:** the official SDKs and the CLI evolve — new flags, new
-output fields, new message/event types, new options. This gem should track those
-changes and adopt the worthwhile enhancements, while staying **idiomatic Ruby**
-and **dependency-free** (standard library only). This doc is the map for doing
-that.
+| Upstream | Package | Baseline | Repo & docs |
+|----------|---------|----------|-------------|
+| Claude Code CLI | `@anthropic-ai/claude-code` (npm) | **2.1.191** | [repo](https://github.com/anthropics/claude-code) · [changelog](https://code.claude.com/docs/en/changelog) · [headless](https://code.claude.com/docs/en/headless) · [CLI ref](https://code.claude.com/docs/en/cli-reference) |
+| Python Agent SDK | `claude-agent-sdk` (PyPI) | **0.2.110** | [repo](https://github.com/anthropics/claude-agent-sdk-python) · [docs](https://code.claude.com/docs/en/agent-sdk/python) |
+| TypeScript Agent SDK | `@anthropic-ai/claude-agent-sdk` (npm) | **0.3.193** | [repo](https://github.com/anthropics/claude-agent-sdk-typescript) · [docs](https://code.claude.com/docs/en/agent-sdk/typescript) |
 
-## Upstream references (watch these for changes)
+**Last full sync:** 2026-06-26 — initial port. Behavior was verified against the
+locally installed CLI **2.1.191**; the SDK docs were reviewed at the package
+versions above. (The gem validates against the CLI; the SDKs are the design
+reference for the public surface.)
 
-- Agent SDK overview: <https://code.claude.com/docs/en/agent-sdk/overview>
-- Python SDK: <https://code.claude.com/docs/en/agent-sdk/python>
-- TypeScript SDK: <https://code.claude.com/docs/en/agent-sdk/typescript>
-- Headless / CLI usage (`claude -p`): <https://code.claude.com/docs/en/headless>
-- CLI flag reference: <https://code.claude.com/docs/en/cli-reference>
-- Docs map (good for diffing): <https://code.claude.com/docs/en/claude_code_docs_map.md>
-- Changelog: <https://code.claude.com/docs/en/changelog>
-- The binary itself: `claude --help`
+## Sync workflow
 
-> **Last verified against:** Claude Code CLI **v2.1.191** (2026-06-26).
-> Update this line whenever you re-sync, so the next diff has a baseline.
+Run this periodically, or whenever asked to "update against upstream." It is an
+iterative loop: each pass records what it found so the next pass starts from a
+known baseline.
 
-## How official SDK concepts map to Ruby Claude
+1. **Check current versions** and compare to the baseline table:
+   ```bash
+   npm view @anthropic-ai/claude-code version          # CLI
+   npm view @anthropic-ai/claude-agent-sdk version     # TypeScript SDK
+   curl -s https://pypi.org/pypi/claude-agent-sdk/json | jq -r .info.version  # Python SDK
+   claude --help                                        # current CLI flags
+   ```
+   If all three match the baseline, stop — there is nothing to sync.
 
-| Official Agent SDK (Python / TypeScript)         | Ruby Claude                          |
-|--------------------------------------------------|--------------------------------------|
-| `query(prompt, options)` one-shot call           | `RubyClaude.query`, `Client#query`   |
-| `ClaudeAgentOptions` / options object → CLI flags | `Configuration` + `Command` (flag mapping) |
-| `ResultMessage` (from `--output-format json`)    | `Response`                           |
-| `SystemMessage` / `AssistantMessage` / `StreamEvent` (stream-json) | `Event`             |
-| Resuming a session (`--resume <id>`)             | `Session`                            |
-| Transport — spawning and talking to `claude`     | `Runner`                             |
+2. **Collect the deltas** for each upstream that moved, from the authoritative
+   sources — the repo's **Releases / CHANGELOG** on GitHub, then the matching
+   docs page. Write down concrete changes only:
+   - new / renamed / removed **CLI flags**
+   - new fields in the `--output-format json` **result** object
+   - new `--output-format stream-json` **message types** or content-block shapes
+   - new **error / auth** conditions
+   - new **options** exposed by the SDKs
+
+3. **Decide scope** for each delta — adopt it, or skip it per the
+   [guardrails](#scope-guardrails-intentionally-not-ported). Record *every*
+   decision, including skips with a one-line reason, in the sync log (step 6).
+
+4. **Implement** adopted deltas in the smallest layer (see
+   [Concept mapping](#concept-mapping) and
+   [When upstream changes](#when-upstream-changes-update-here)). Most additions
+   are one flag in `Command` plus a `Configuration` accessor; parsing changes go
+   in `Response` / `Event`.
+
+5. **Test hermetically.** Extend the `Command` / `Response` / `Event` tests and
+   `test/fixtures/`; never call the real `claude` or the network. `bundle exec
+   rake` must be green.
+
+6. **Record the sync.** Update the [baseline table](#upstream-baseline) (versions
+   + "Last full sync"), add rows to the mapping tables if the surface changed,
+   append a dated [Sync log](#sync-log) entry, and bump `RubyClaude::VERSION` if
+   the public surface changed.
+
+## Sync log
+
+Append-only, newest first. One entry per sync: versions reviewed, what changed
+upstream, and what this gem adopted or deliberately skipped. This is the running
+record of how the gem has tracked the Claude repositories over time.
+
+### 2026-06-26 — initial port
+- Baseline established: CLI **2.1.191**, Python SDK **0.2.110**, TS SDK **0.3.193**.
+- Verified flag mapping, the `--output-format json` result shape, and
+  `stream-json` events against CLI 2.1.191 and the headless / CLI-reference /
+  agent-sdk docs.
+- Implemented the full intended public surface; nothing skipped beyond the
+  standing guardrails below.
+
+<!-- Template for the next entry:
+### YYYY-MM-DD — short summary
+- Versions: CLI x.y.z, Python a.b.c, TS d.e.f.
+- Upstream changes reviewed: ...
+- Adopted: ...
+- Skipped (with reason): ...
+-->
+
+## Concept mapping
+
+| Official Agent SDK (Python / TypeScript) | Ruby Claude |
+|------------------------------------------|-------------|
+| `query(prompt, options)` one-shot | `RubyClaude.query`, `Client#query` |
+| `ClaudeAgentOptions` / options → CLI flags | `Configuration` + `Command` |
+| `ResultMessage` (`--output-format json`) | `Response` |
+| `SystemMessage` / `AssistantMessage` / `StreamEvent` (stream-json) | `Event` |
+| Session resume (`--resume <id>`) | `Session` |
+| Transport — spawning `claude` | `Runner` |
 
 ## When upstream changes, update here
 
-| Upstream change                                   | Update in Ruby Claude                                                   |
-|---------------------------------------------------|-------------------------------------------------------------------------|
-| New / renamed / removed CLI flag                  | `Command#build`; add or rename a `Configuration` accessor; README config table |
-| New field in the `--output-format json` result   | `Response.from_result` (+ `test/fixtures/result_*.json`)                |
-| New stream-json `type` or content-block shape     | `Event.from_hash` / `Event.extract_text` (+ `test/fixtures/stream.txt`) |
-| New failure / auth condition                      | `errors.rb` and `Client` error translation (`AUTH_PATTERNS`, `interpret`) |
-| New model ids / aliases                           | usually nothing (pass-through via `model`); refresh README examples     |
-
-## Porting an enhancement — checklist
-
-1. **Diff upstream.** Skim the changelog and the SDK / headless / CLI-reference
-   pages since the "Last verified against" version above, and run `claude --help`
-   to spot new flags.
-2. **Decide scope.** Adopt only what fits this gem (see guardrails below); skip
-   anything that needs the HTTP API or an interactive UI.
-3. **Implement in the smallest layer.** Most additions are a single flag in
-   `Command` plus an accessor in `Configuration`.
-4. **Keep tests hermetic.** Extend the `Command` / `Response` / `Event` tests and
-   fixtures. Never invoke the real `claude` binary or the network in tests — the
-   `Client` takes an injected runner for exactly this.
-5. **Stay green.** `bundle exec rake` (tests + lint) must pass.
-6. **Bump the version.** Update `RubyClaude::VERSION` (SemVer) and the README if
-   the public surface changed.
-7. **Update the baseline.** Bump the "Last verified against" line above.
+| Upstream change | Update in Ruby Claude |
+|-----------------|------------------------|
+| New / renamed / removed CLI flag | `Command#build`; add/rename a `Configuration` accessor; README config table |
+| New `--output-format json` result field | `Response.from_result` (+ `test/fixtures/result_*.json`) |
+| New `stream-json` `type` / content shape | `Event.from_hash` / `Event.extract_text` (+ `test/fixtures/stream.txt`) |
+| New failure / auth condition | `errors.rb`; `Client` translation (`AUTH_PATTERNS`, `interpret`) |
+| New model ids / aliases | usually nothing (pass-through via `model`); refresh README examples |
 
 ## Scope guardrails (intentionally NOT ported)
 
-These are deliberate non-goals — keep them out even if the official SDKs grow
-features around them:
+Deliberate non-goals — keep them out even if the SDKs grow features around them:
 
-- **No direct HTTP calls** to the Anthropic API, and no API-key-first path. The
-  API key is honored only when a user opts out via `use_subscription = false`.
-- **No OAuth token extraction or handling.** Authentication is whatever the CLI
-  is logged in with.
-- **No interactive REPL/TUI.** Claude Code already is the interactive CLI.
-- **Zero runtime gem dependencies.** Standard library only (`open3`, `json`).
+- **No direct HTTP calls** to the Anthropic API; no API-key-first path (the key
+  is used only when `use_subscription = false`).
+- **No OAuth token extraction/handling** — auth is whatever the CLI is logged in with.
+- **No interactive REPL/TUI** — Claude Code already is that.
+- **Zero runtime gem dependencies** — standard library only (`open3`, `json`).
